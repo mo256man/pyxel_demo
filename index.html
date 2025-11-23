@@ -3,19 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pyxel Web Launcher</title>
-    <script src="https://cdn.jsdelivr.net/gh/mo256man/pyxel_demo/main.py" type="text/python"></script>
+    <title>Copilot's Pyxel Game</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+        }
+        #canvas {
+            border: 2px solid white;
+        }
+    </style>
 </head>
 <body>
-    <h1>Welcome to Pyxel Web Launcher</h1>
-    <button id="launch">Run Main.py</button>
-
+    <canvas id="canvas"></canvas>
+    <script src="https://cdn.jsdelivr.net/gh/kitao/pyxel/wasm/pyxel.js"></script>
     <script>
-        document.getElementById('launch').onclick = function() {
-            // Use Pyxel Web functionality to run main.py
-            // This is a placeholder for the Pyxel execution code
-            alert('Launching main.py...');
-        };
+        fetch('main.py')
+            .then(response => response.text())
+            .then(code => {
+                eval(code);
+            });
     </script>
 </body>
 </html>
