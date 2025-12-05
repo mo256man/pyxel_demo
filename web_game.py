@@ -1,9 +1,10 @@
 """
 Pyxel auto-Puyo (pair fall) — launcher-compatible module
 
-This file is written so the Pyxel Web Launcher can import the module and start the app.
-It exposes a run() function and also starts automatically when the module is imported,
-so the launcher can simply import mo256man.pyxel_demo.web_game.
+This module exports run() and is safe to import multiple times:
+- run() is idempotent (won't start multiple times if called repeatedly).
+- It will also attempt to start automatically on import for launchers that
+  expect import-to-run behavior, but guarded to avoid double-starts.
 
 Notes:
 - Screen: 256x256
@@ -13,7 +14,16 @@ Notes:
 """
 
 import random
-import pyxel
+
+try:
+    import pyxel
+except Exception as e:
+    # Make the import error clearer for local testing if pyxel isn't installed.
+    raise ImportError(
+        "pyxel is required to run this module. Install pyxel for local testing, "
+        "or run via the Pyxel Web Launcher which provides the runtime. "
+        f"(original error: {e})"
+    )
 
 # Grid / game settings
 W = 16
@@ -45,6 +55,9 @@ COLOR_MAP = {
     4: 12,
 }
 BG_COLOR = 0
+
+# Guard to prevent multiple starts if run() is called twice/imported twice.
+_started = False
 
 class Pair:
     def __init__(self, r, c, orientation, col_a, col_b):
@@ -133,6 +146,7 @@ class Field:
         cols = [self.current_pair.col_a, self.current_pair.col_b]
         for (r, c), col in zip(pos, cols):
             if not (0 <= r < H and 0 <= c < W):
+                # If lock would be out-of-bounds, treat as game-over: clear board
                 self.clear()
                 self.current_pair = None
                 self.is_generate = True
@@ -292,6 +306,11 @@ class App:
 
 def run():
     """Start the App. Exported so launcher or other code can call explicitly."""
+    global _started
+    if _started:
+        return
+    _started = True
+    random.seed()
     App()
 
 # Start automatically on import so Pyxel Web Launcher (which imports the module) runs it.
