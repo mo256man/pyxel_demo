@@ -1,16 +1,9 @@
 """
 Pyxel 自動ぷよ（ペア落下） — ランチャー互換モジュール（caption 非対応環境に対応）
 
-このモジュールは run() をエクスポートし、複数回インポートされても安全に動作します。
+このモジュールは run() をエクスポートし、モジュールの import だけで起動できるよう末尾で run() を呼びます。
 - run() は冪等（複数回呼んでも二重起動しません）。
-- 一部のランチャーは import するだけで実行するため、自動起動も試みますが
-  二重起動を避けるガードを入れています。
-
-仕様：
-- 画面サイズ: 256x256
-- 表示専用（プレイヤー入力なし）
-- ペア（2ブロック）が横/縦いずれかで落ちてくる
-- 外部アセット不要
+- pyxel.init の caption 未対応実装に対してフォールバックします。
 """
 
 import random
@@ -273,20 +266,6 @@ class Field:
                     pyxel.rect(x+1, y+1, CELL-2, CELL-2, col)
                     pyxel.rectb(x, y, CELL, CELL, 7)
 
-    def draw(self):
-        # 落下中のペアをマトリックス描画の上に重ねて描画
-        if self.current_pair is not None:
-            pos = self.current_pair.positions()
-            cols = [self.current_pair.col_a, self.current_pair.col_b]
-            for (r, c), col in zip(pos, cols):
-                if not (0 <= r < H and 0 <= c < W):
-                    continue
-                x = GRID_X + c * CELL
-                y = GRID_Y + r * CELL
-                colidx = COLOR_MAP.get(col, 11)
-                pyxel.rect(x+1, y+1, CELL-2, CELL-2, colidx)
-                pyxel.rectb(x, y, CELL, CELL, 7)
-
 class App:
     def __init__(self):
         _init_pyxel()
@@ -313,8 +292,22 @@ class App:
         pyxel.text(8, 18, "操作: なし（表示専用）", 7)
         pyxel.text(8, 28, "Q/Esc で終了(ローカル実行時)", 7)
 
+    def draw(self):
+        # 落下中のペアをマトリックス描画の上に重ねて描画
+        if self.current_pair is not None:
+            pos = self.current_pair.positions()
+            cols = [self.current_pair.col_a, self.current_pair.col_b]
+            for (r, c), col in zip(pos, cols):
+                if not (0 <= r < H and 0 <= c < W):
+                    continue
+                x = GRID_X + c * CELL
+                y = GRID_Y + r * CELL
+                colidx = COLOR_MAP.get(col, 11)
+                pyxel.rect(x+1, y+1, CELL-2, CELL-2, colidx)
+                pyxel.rectb(x, y, CELL, CELL, 7)
+
 def run():
-    """アプリを開始する。ランチャーや外部コードから呼び出せるようエクスポートしている。"""
+    """アプリを開始する。ランチャーや外部コードから呼び出せるようにしている。"""
     global _started
     if _started:
         return
@@ -322,6 +315,6 @@ def run():
     random.seed()
     App()
 
-# モジュールがインポートされたときに自動起動を試みる（Pyxel Web Launcher が import するだけで動かす実装に対応）
+# モジュールがインポートされたときに自動起動を試みる（Pyxel Web Launcher が import するだけで実行する実装に対応）
 # また `python web_game.py` で実行する場合にも動くようにしている。
 run()
