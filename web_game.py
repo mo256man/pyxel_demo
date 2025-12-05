@@ -337,3 +337,5 @@ def run():
 # モジュールがインポートされたときに自動起動を試みる（Pyxel Web Launcher が import するだけで実行する実装に対応）
 # また `python web_game.py` で実行する場合にも動くようにしている。
 run()
+
+# JSDELIVR_CACHE_BUST: 2025-12-05T16:41:11Z
