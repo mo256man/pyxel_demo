@@ -1,5 +1,5 @@
 """
-Pyxel 自動ぷよ（ペア落下） — ランチャー互換モジュール
+Pyxel 自動ぷよ（ペア落下） — ランチャー互換モジュール（caption 非対応環境に対応）
 
 このモジュールは run() をエクスポートし、複数回インポートされても安全に動作します。
 - run() は冪等（複数回呼んでも二重起動しません）。
@@ -298,29 +298,13 @@ class Field:
 
 class App:
     def __init__(self):
-        pyxel.init(SCREEN_W, SCREEN_H, caption="pyxel_demo - auto puyo (pair fall)")
+        # pyxel.init の caption 引数が無い環境（WASM）に対応するためフォールバック処理を行う
+        try:
+            pyxel.init(SCREEN_W, SCREEN_H, caption="pyxel_demo - auto puyo (pair fall)")
+        except TypeError:
+            pyxel.init(SCREEN_W, SCREEN_H)
         self.field = Field()
         pyxel.run(self.update, self.draw)
-
-    def update(self):
-        # ローカル実行時に終了できるように Q/Escape を許可
-        if pyxel.btnp(pyxel.KEY_Q) or pyxel.btnp(pyxel.KEY_ESCAPE):
-            pyxel.quit()
-        self.field.update()
-
-    def draw(self):
-        pyxel.cls(BG_COLOR)
-        # グリッド周りの枠描画
-        pyxel.rect(GRID_X-2, GRID_Y-2, GRID_W_PIX+4, GRID_H_PIX+4, 1)
-        self.field.draw()
-        # HUD: 連鎖表示またはステータスメッセージ
-        if self.field.rensa > 0:
-            txt = f"{self.field.rensa} 連鎖 {'!' * min(self.field.rensa, 6)}"
-            pyxel.text(8, 8, txt, 7)
-        else:
-            pyxel.text(8, 8, "見るだけ Puyo (自動再生)", 7)
-        pyxel.text(8, 18, "操作: なし（表示専用）", 7)
-        pyxel.text(8, 28, "Q/Esc で終了(ローカル実行時)", 7)
 
 def run():
     """アプリを開始する。ランチャーや外部コードから呼び出せるようエクスポートしている。"""
