@@ -95,7 +95,7 @@ class Game:
 
     def __init__(self):
         """Initialize Pyxel and game state."""
-        # Initialize Pyxel with 256x256 screen, no virtual gamepad
+        # Initialize Pyxel with 256x256 screen
         pyxel.init(256, 256, title="Pyxel Web Game Demo")
 
         # Define ground level
@@ -104,7 +104,7 @@ class Game:
         # Create player at center of screen
         self.player = Player(124, self.ground_y - 8)
 
-        # Define jump sound using minimal MML (Music Macro Language)
+        # Define jump sound using Pyxel's sound API
         # Sound 0: A short beep for jumping
         pyxel.sounds[0].set(
             notes="C3",  # Note
@@ -132,10 +132,10 @@ class Game:
         pyxel.cls(1)
 
         # Draw ground
-        pyxel.rect(0, self.ground_y, 256, 256 - self.ground_y, 3)
+        pyxel.rect(0, self.ground_y, pyxel.width, pyxel.height - self.ground_y, 3)
 
         # Draw some simple scenery (grass tufts)
-        for i in range(0, 256, 16):
+        for i in range(0, pyxel.width, 16):
             pyxel.line(i + 4, self.ground_y, i + 4, self.ground_y - 3, 11)
             pyxel.line(i + 8, self.ground_y, i + 8, self.ground_y - 4, 11)
             pyxel.line(i + 12, self.ground_y, i + 12, self.ground_y - 2, 11)
