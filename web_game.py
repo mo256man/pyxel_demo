@@ -1,16 +1,16 @@
 """
-Pyxel auto-Puyo (pair fall) — launcher-compatible module
+Pyxel 自動ぷよ（ペア落下） — ランチャー互換モジュール
 
-This module exports run() and is safe to import multiple times:
-- run() is idempotent (won't start multiple times if called repeatedly).
-- It will also attempt to start automatically on import for launchers that
-  expect import-to-run behavior, but guarded to avoid double-starts.
+このモジュールは run() をエクスポートし、複数回インポートされても安全に動作します。
+- run() は冪等（複数回呼んでも二重起動しません）。
+- 一部のランチャーは import するだけで実行するため、自動起動も試みますが
+  二重起動を避けるガードを入れています。
 
-Notes:
-- Screen: 256x256
-- View-only automatic simulation (no player input required)
-- Pairs (2-block pieces) fall either horizontally or vertically
-- No external assets
+仕様：
+- 画面サイズ: 256x256
+- 表示専用（プレイヤー入力なし）
+- ペア（2ブロック）が横/縦いずれかで落ちてくる
+- 外部アセット不要
 """
 
 import random
@@ -18,23 +18,22 @@ import random
 try:
     import pyxel
 except Exception as e:
-    # Make the import error clearer for local testing if pyxel isn't installed.
     raise ImportError(
-        "pyxel is required to run this module. Install pyxel for local testing, "
-        "or run via the Pyxel Web Launcher which provides the runtime. "
-        f"(original error: {e})"
+        "このモジュールを実行するには pyxel が必要です。ローカルで動作させる場合は pyxel をインストールするか、"
+        "Pyxel Web Launcher 経由で実行してください。"
+        f"(元のエラー: {e})"
     )
 
-# Grid / game settings
+# グリッド / ゲーム設定
 W = 16
 H = 16
-OWANIMO = 4   # 消える個数閾値
+OWANIMO = 4   # 消える個数の閾値
 COLORS = 4    # 色数 (1..COLORS)
 
 SCREEN_W = 256
 SCREEN_H = 256
 
-# Layout / rendering
+# レイアウト / 描画設定
 MARGIN = 16
 CELL = min((SCREEN_W - MARGIN * 2) // W, (SCREEN_H - MARGIN * 2) // H)
 GRID_W_PIX = CELL * W
@@ -42,12 +41,12 @@ GRID_H_PIX = CELL * H
 GRID_X = (SCREEN_W - GRID_W_PIX) // 2
 GRID_Y = (SCREEN_H - GRID_H_PIX) // 2
 
-# Timing (frames)
+# タイミング（フレーム数）
 DROP_INTERVAL = 6
 ERASE_ANIM_FRAMES = 18
 GEN_WAIT_FRAMES = 4
 
-# Pyxel color mapping (tweak as necessary)
+# Pyxel のカラーマッピング（必要に応じて調整）
 COLOR_MAP = {
     1: 11,
     2: 9,
@@ -56,14 +55,14 @@ COLOR_MAP = {
 }
 BG_COLOR = 0
 
-# Guard to prevent multiple starts if run() is called twice/imported twice.
+# run() を複数回呼んでも多重起動にならないようにするガード
 _started = False
 
 class Pair:
     def __init__(self, r, c, orientation, col_a, col_b):
         self.r = r
         self.c = c
-        self.orientation = orientation  # 'H' or 'V'
+        self.orientation = orientation  # 'H' または 'V'
         self.col_a = col_a
         self.col_b = col_b
 
@@ -85,9 +84,11 @@ class Field:
         self.current_pair = None
 
     def clear(self):
+        # フィールドを空にする
         self.matrix = [[0] * W for _ in range(H)]
 
     def can_place_pair(self, orientation, c):
+        # 指定位置にペアを配置できるか（上段の空きを確認）
         if orientation == 'H':
             if c < 0 or c >= W - 1:
                 return False
@@ -98,6 +99,7 @@ class Field:
             return self.matrix[0][c] == 0 and self.matrix[1][c] == 0
 
     def generate_drop(self):
+        # 横向き／縦向きのどちらかでランダムにペアを生成して配置
         orientations = ['H', 'V']
         random.shuffle(orientations)
         placed = False
@@ -123,12 +125,14 @@ class Field:
                 break
 
         if not placed:
+            # 置けないときはランダムな色を一色消す（元仕様に準拠）
             self.erase_one_color()
             self.is_generate = False
             self.gen_wait = GEN_WAIT_FRAMES
             self.rensa = 0
 
     def pair_can_move_down(self):
+        # 現在のペアが1セル下に移動できるかチェック
         if self.current_pair is None:
             return False
         for (r, c) in self.current_pair.positions():
@@ -140,13 +144,14 @@ class Field:
         return True
 
     def lock_current_pair(self):
+        # ペアを固定（マトリックスに書き込む）
         if self.current_pair is None:
             return
         pos = self.current_pair.positions()
         cols = [self.current_pair.col_a, self.current_pair.col_b]
         for (r, c), col in zip(pos, cols):
+            # 範囲外になったらゲームオーバーに相当してフィールドをクリア
             if not (0 <= r < H and 0 <= c < W):
-                # If lock would be out-of-bounds, treat as game-over: clear board
                 self.clear()
                 self.current_pair = None
                 self.is_generate = True
@@ -155,6 +160,7 @@ class Field:
         self.current_pair = None
 
     def drop_step(self):
+        # ペアがある場合はペアとして落下させ、それ以外は単体ブロックの落下処理
         moved = False
         if self.current_pair is not None:
             if self.pair_can_move_down():
@@ -165,6 +171,7 @@ class Field:
                 moved = True
             return moved
 
+        # 単体ブロックの落下（下から順に1セルだけ落とす）
         for r in range(H - 2, -1, -1):
             for c in range(W):
                 if self.matrix[r][c] != 0 and self.matrix[r + 1][c] == 0:
@@ -174,6 +181,7 @@ class Field:
         return moved
 
     def erase(self):
+        # BFS で同色のグループを見つけ、閾値以上なら消す（-1 でアニメーションマーク）
         checked = [[False] * W for _ in range(H)]
         dirs = [(-1,0),(1,0),(0,-1),(0,1)]
         found_groups = []
@@ -206,6 +214,7 @@ class Field:
             self.to_clear = []
             for group in found_groups:
                 for r,c in group:
+                    # 消去演出用に -1 でマーク
                     self.matrix[r][c] = -1
                     self.to_clear.append((r,c))
             self.erase_anim_timer = ERASE_ANIM_FRAMES
@@ -213,6 +222,7 @@ class Field:
         return is_erase
 
     def erase_one_color(self):
+        # ランダムに1色選んでフィールドから消す
         color = random.randint(1, COLORS)
         for r in range(H):
             for c in range(W):
@@ -220,7 +230,7 @@ class Field:
                     self.matrix[r][c] = 0
 
     def update(self):
-        # erase animation
+        # 消去アニメーション処理
         if self.erase_anim_timer > 0:
             self.erase_anim_timer -= 1
             if self.erase_anim_timer == 0:
@@ -229,15 +239,18 @@ class Field:
                 self.to_clear = []
             return
 
+        # 生成後のウェイト処理
         if self.gen_wait > 0:
             self.gen_wait -= 1
             if self.gen_wait > 0:
                 return
 
+        # 新しいペアを生成するかどうか
         if self.is_generate and self.current_pair is None:
             self.generate_drop()
             return
 
+        # 定期的に落下処理を行う
         self.drop_timer += 1
         if self.drop_timer >= DROP_INTERVAL:
             self.drop_timer = 0
@@ -245,11 +258,14 @@ class Field:
             if not moved:
                 erased = self.erase()
                 if erased:
+                    # 消えたら連鎖カウントを増やす
                     self.rensa += 1
                 else:
+                    # 何も消えなければ次を生成
                     self.is_generate = True
 
     def draw(self):
+        # グリッドの各セルを描画
         for r in range(H):
             for c in range(W):
                 x = GRID_X + c * CELL
@@ -259,6 +275,7 @@ class Field:
                     pyxel.rect(x, y, CELL, CELL, BG_COLOR)
                     pyxel.rectb(x, y, CELL, CELL, 1)
                 elif val == -1:
+                    # 消去アニメの点滅描画
                     col = 7 if (pyxel.frame_count // 3) % 2 == 0 else 8
                     pyxel.rect(x+1, y+1, CELL-2, CELL-2, col)
                 else:
@@ -266,7 +283,7 @@ class Field:
                     pyxel.rect(x+1, y+1, CELL-2, CELL-2, col)
                     pyxel.rectb(x, y, CELL, CELL, 7)
 
-        # draw dropping pair on top
+        # 落下中のペアをマトリックス描画の上に重ねて描画
         if self.current_pair is not None:
             pos = self.current_pair.positions()
             cols = [self.current_pair.col_a, self.current_pair.col_b]
@@ -283,19 +300,20 @@ class App:
     def __init__(self):
         pyxel.init(SCREEN_W, SCREEN_H, caption="pyxel_demo - auto puyo (pair fall)")
         self.field = Field()
-        random.seed()
         pyxel.run(self.update, self.draw)
 
     def update(self):
-        # allow quit locally
+        # ローカル実行時に終了できるように Q/Escape を許可
         if pyxel.btnp(pyxel.KEY_Q) or pyxel.btnp(pyxel.KEY_ESCAPE):
             pyxel.quit()
         self.field.update()
 
     def draw(self):
         pyxel.cls(BG_COLOR)
+        # グリッド周りの枠描画
         pyxel.rect(GRID_X-2, GRID_Y-2, GRID_W_PIX+4, GRID_H_PIX+4, 1)
         self.field.draw()
+        # HUD: 連鎖表示またはステータスメッセージ
         if self.field.rensa > 0:
             txt = f"{self.field.rensa} 連鎖 {'!' * min(self.field.rensa, 6)}"
             pyxel.text(8, 8, txt, 7)
@@ -305,7 +323,7 @@ class App:
         pyxel.text(8, 28, "Q/Esc で終了(ローカル実行時)", 7)
 
 def run():
-    """Start the App. Exported so launcher or other code can call explicitly."""
+    """アプリを開始する。ランチャーや外部コードから呼び出せるようエクスポートしている。"""
     global _started
     if _started:
         return
@@ -313,6 +331,6 @@ def run():
     random.seed()
     App()
 
-# Start automatically on import so Pyxel Web Launcher (which imports the module) runs it.
-# Also makes `python web_game.py` work.
+# モジュールがインポートされたときに自動起動を試みる（Pyxel Web Launcher が import するだけで動かす実装に対応）
+# また `python web_game.py` で実行する場合にも動くようにしている。
 run()
