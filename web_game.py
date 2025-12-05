@@ -14,13 +14,14 @@ Pyxel 自動ぷよ（ペア落下） — ランチャー互換モジュール（
 """
 
 import random
+import inspect
 
 try:
     import pyxel
 except Exception as e:
     raise ImportError(
-        "このモジュールを実行するには pyxel が必要です。ローカルで動作させる場合は pyxel をインストールするか、"
-        "Pyxel Web Launcher 経由で実行してください。"
+        "このモジュールを実行するには pyxel が必要です。Pyxel Web Launcher 経由で実行するか、"
+        "ローカルでテストする場合は pyxel をインストールしてください。"
         f"(元のエラー: {e})"
     )
 
@@ -57,6 +58,21 @@ BG_COLOR = 0
 
 # run() を複数回呼んでも多重起動にならないようにするガード
 _started = False
+
+def _init_pyxel():
+    """
+    pyxel.init を呼び出す。caption 引数が使えない環境では自動でフォールバックする。
+    inspect.signature で caption の有無を判定し、例外が出たら caption なしで再試行する。
+    """
+    try:
+        sig = inspect.signature(pyxel.init)
+        if 'caption' in sig.parameters:
+            pyxel.init(SCREEN_W, SCREEN_H, caption="pyxel_demo - auto puyo (pair fall)")
+        else:
+            pyxel.init(SCREEN_W, SCREEN_H)
+    except Exception:
+        # inspect が利用できない実装や予期せぬ例外が出た場合は caption なしで再試行
+        pyxel.init(SCREEN_W, SCREEN_H)
 
 class Pair:
     def __init__(self, r, c, orientation, col_a, col_b):
@@ -237,32 +253,6 @@ class Field:
                 for (r,c) in self.to_clear:
                     self.matrix[r][c] = 0
                 self.to_clear = []
-            return
-
-        # 生成後のウェイト処理
-        if self.gen_wait > 0:
-            self.gen_wait -= 1
-            if self.gen_wait > 0:
-                return
-
-        # 新しいペアを生成するかどうか
-        if self.is_generate and self.current_pair is None:
-            self.generate_drop()
-            return
-
-        # 定期的に落下処理を行う
-        self.drop_timer += 1
-        if self.drop_timer >= DROP_INTERVAL:
-            self.drop_timer = 0
-            moved = self.drop_step()
-            if not moved:
-                erased = self.erase()
-                if erased:
-                    # 消えたら連鎖カウントを増やす
-                    self.rensa += 1
-                else:
-                    # 何も消えなければ次を生成
-                    self.is_generate = True
 
     def draw(self):
         # グリッドの各セルを描画
@@ -283,6 +273,7 @@ class Field:
                     pyxel.rect(x+1, y+1, CELL-2, CELL-2, col)
                     pyxel.rectb(x, y, CELL, CELL, 7)
 
+    def draw(self):
         # 落下中のペアをマトリックス描画の上に重ねて描画
         if self.current_pair is not None:
             pos = self.current_pair.positions()
@@ -298,13 +289,29 @@ class Field:
 
 class App:
     def __init__(self):
-        # pyxel.init の caption 引数が無い環境（WASM）に対応するためフォールバック処理を行う
-        try:
-            pyxel.init(SCREEN_W, SCREEN_H, caption="pyxel_demo - auto puyo (pair fall)")
-        except TypeError:
-            pyxel.init(SCREEN_W, SCREEN_H)
+        _init_pyxel()
         self.field = Field()
         pyxel.run(self.update, self.draw)
+
+    def update(self):
+        # ローカル実行時に終了できるように Q/Escape を許可
+        if pyxel.btnp(pyxel.KEY_Q) or pyxel.btnp(pyxel.KEY_ESCAPE):
+            pyxel.quit()
+        self.field.update()
+
+    def draw(self):
+        pyxel.cls(BG_COLOR)
+        # グリッド周りの枠描画
+        pyxel.rect(GRID_X-2, GRID_Y-2, GRID_W_PIX+4, GRID_H_PIX+4, 1)
+        self.field.draw()
+        # HUD: 連鎖表示またはステータスメッセージ
+        if self.field.rensa > 0:
+            txt = f"{self.field.rensa} 連鎖 {'!' * min(self.field.rensa, 6)}"
+            pyxel.text(8, 8, txt, 7)
+        else:
+            pyxel.text(8, 8, "見るだけ Puyo (自動再生)", 7)
+        pyxel.text(8, 18, "操作: なし（表示専用）", 7)
+        pyxel.text(8, 28, "Q/Esc で終了(ローカル実行時)", 7)
 
 def run():
     """アプリを開始する。ランチャーや外部コードから呼び出せるようエクスポートしている。"""
