@@ -18,6 +18,25 @@ except Exception as e:
         f"(元のエラー: {e})"
     )
 
+# DIAG: inserted diagnostic prints to help identify which file and pyxel.init signature the launcher is actually using
+try:
+    try:
+        print("DIAG: web_game __file__ =", __file__)
+    except Exception:
+        print("DIAG: __file__ not available")
+    try:
+        print("DIAG: pyxel.init obj =", getattr(pyxel, "init", None))
+        try:
+            sig = inspect.signature(pyxel.init)
+            print("DIAG: pyxel.init signature:", sig)
+        except Exception as e:
+            print("DIAG: inspect.signature failed:", e)
+    except Exception as e:
+        print("DIAG: failed to inspect pyxel.init:", e)
+except Exception:
+    # keep diagnostics best-effort and never break import
+    pass
+
 # グリッド / ゲーム設定
 W = 16
 H = 16
