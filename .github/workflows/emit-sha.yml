@@ -8,6 +8,9 @@ on:
       - 'README.md'
       - '.github/workflows/emit-sha.yml'
 
+permissions:
+  contents: read
+
 jobs:
   emit-sha:
     runs-on: ubuntu-latest
