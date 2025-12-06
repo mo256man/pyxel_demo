@@ -55,7 +55,7 @@ GRID_X = (SCREEN_W - GRID_W_PIX) // 2
 GRID_Y = (SCREEN_H - GRID_H_PIX) // 2
 
 # タイミング（フレーム数）
-DROP_INTERVAL = 6
+DROP_INTERVAL = 3
 ERASE_ANIM_FRAMES = 18
 GEN_WAIT_FRAMES = 4
 
@@ -87,25 +87,49 @@ def _init_pyxel():
         pyxel.init(SCREEN_W, SCREEN_H)
 
 class Pair:
-    def __init__(self, r, c, orientation, col_a, col_b):
-        if orientation == 'H':
-            self.blocks = [(r, c, col_a), (r, c+1, col_b)]
-        else:
-            self.blocks = [(r, c, col_a), (r+1, c, col_b)]
+    def __init__(self, field, r_a, c_a, r_b, c_b, col_a, col_b):
+        self.field = field
+        self.r_a = r_a
+        self.c_a = c_a
+        self.r_b = r_b
+        self.c_b = c_b
+        self.col_a = col_a
+        self.col_b = col_b
 
     def positions(self):
-        return [(r, c) for r, c, _ in self.blocks]
+        pos = []
+        if self.r_a >= 0:
+            pos.append((self.r_a, self.c_a))
+        if self.r_b >= 0:
+            pos.append((self.r_b, self.c_b))
+        return pos
 
-    def move_down(self, field):
-        new_blocks = []
-        for r, c, col in self.blocks:
-            if r + 1 >= H or field.matrix[r + 1][c] != 0:
-                field.matrix[r][c] = col
-            else:
-                new_blocks.append((r + 1, c, col))
-        self.blocks = new_blocks
-        if not self.blocks:
-            return True  # 全て固定
+    def cols(self):
+        cols = []
+        if self.r_a >= 0:
+            cols.append(self.col_a)
+        if self.r_b >= 0:
+            cols.append(self.col_b)
+        return cols
+
+    def move_down(self):
+        if self.r_a >= 0 and self.r_a + 1 < H and self.field.matrix[self.r_a + 1][self.c_a] == 0:
+            self.r_a += 1
+        if self.r_b >= 0 and self.r_b + 1 < H and self.field.matrix[self.r_b + 1][self.c_b] == 0:
+            self.r_b += 1
+
+    def lock(self):
+        locked = False
+        if self.r_a >= 0 and (self.r_a + 1 >= H or self.field.matrix[self.r_a + 1][self.c_a] != 0):
+            self.field.matrix[self.r_a][self.c_a] = self.col_a
+            self.r_a = -1
+            locked = True
+        if self.r_b >= 0 and (self.r_b + 1 >= H or self.field.matrix[self.r_b + 1][self.c_b] != 0):
+            self.field.matrix[self.r_b][self.c_b] = self.col_b
+            self.r_b = -1
+            locked = True
+        if self.r_a < 0 and self.r_b < 0:
+            return True
         return False
 
 class Field:
@@ -150,9 +174,9 @@ class Field:
                 col_a = random.randint(1, COLORS)
                 col_b = random.randint(1, COLORS)
                 if ori == 'H':
-                    p = Pair(0, c, 'H', col_a, col_b)
+                    p = Pair(self, 0, c, 0, c+1, col_a, col_b)
                 else:
-                    p = Pair(0, c, 'V', col_a, col_b)
+                    p = Pair(self, 0, c, 1, c, col_a, col_b)
                 self.current_pair = p
                 self.is_generate = False
                 self.gen_wait = GEN_WAIT_FRAMES
@@ -167,27 +191,12 @@ class Field:
             self.gen_wait = GEN_WAIT_FRAMES
             self.rensa = 0
 
-    def lock_current_pair(self):
-        # ペアを固定（マトリックスに書き込む）
-        if self.current_pair is None:
-            return
-        pos = self.current_pair.positions()
-        cols = [self.current_pair.col_a, self.current_pair.col_b]
-        for (r, c), col in zip(pos, cols):
-            # 範囲外になったらゲームオーバーに相当してフィールドをクリア
-            if not (0 <= r < H and 0 <= c < W):
-                self.clear()
-                self.current_pair = None
-                self.is_generate = True
-                return
-            self.matrix[r][c] = col
-        self.current_pair = None
-
     def drop_step(self):
         # ペアがある場合はペアとして落下させ、それ以外は単体ブロックの落下処理
         moved = False
         if self.current_pair is not None:
-            if self.current_pair.move_down(self):
+            self.current_pair.move_down()
+            if self.current_pair.lock():
                 self.current_pair = None
             moved = True
             return moved
@@ -340,8 +349,8 @@ class App:
         pyxel.run(self.update, self.draw)
 
     def update(self):
-        # ローカル実行時に終了できるように Q/Escape を許可
-        if pyxel.btnp(pyxel.KEY_Q) or pyxel.btnp(pyxel.KEY_ESCAPE):
+        # ローカル実行時に終了できるように Q を許可
+        if pyxel.btnp(pyxel.KEY_Q):
             pyxel.quit()
         # フィールドの状態更新（自動再生ロジックを中に含む）
         self.field.update()
@@ -354,7 +363,9 @@ class App:
         self.field.draw()
         # 落下中のペアをマトリックス描画の上に重ねて描画
         if self.field.current_pair is not None:
-            for r, c, col in self.field.current_pair.blocks:
+            pos = self.field.current_pair.positions()
+            cols = self.field.current_pair.cols()
+            for (r, c), col in zip(pos, cols):
                 if not (0 <= r < H and 0 <= c < W):
                     continue
                 x = GRID_X + c * CELL
@@ -370,7 +381,6 @@ class App:
         else:
             pyxel.text(8, 8, "見るだけ Puyo (自動再生)", 7)
         pyxel.text(8, 18, "操作: なし（表示専用）", 7)
-        pyxel.text(8, 28, "Q/Esc で終了(ローカル実行時)", 7)
 
 def run():
     """アプリを開始する。ランチャーや外部コードから呼び出せるようにしている。"""
@@ -384,7 +394,3 @@ def run():
 # モジュールがインポートされたときに自動起動を試みる（Pyxel Web Launcher が import するだけで実行する実装に対応）
 # また `python web_game.py` で実行する場合にも動くようにしている。
 run()
-
-# JSDELIVR_CACHE_BUST: 2025-12-05T16:41:11Z
-# CACHE_BUST: 2025-12-06T16:45Z
-# AUTO_TRIGGER: 2025-12-06T01:30:00Z
