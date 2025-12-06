@@ -1,0 +1,64 @@
+name: Update web_game.py CACHE_BUST and purge jsDelivr
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-and-purge:
+    # avoid running on commits created by this workflow itself
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Update web_game.py CACHE_BUST timestamp
+        run: |
+          python - <<'PY'
+          from datetime import datetime
+          import re, os
+          p = "web_game.py"
+          now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+          try:
+              s = open(p, "r", encoding="utf-8").read()
+          except FileNotFoundError:
+              s = ""
+          marker = "# CACHE_BUST:"
+          if marker in s:
+              s, n = re.subn(r'(?m)^# CACHE_BUST:.*\n?', f'# CACHE_BUST: {now}\n', s)
+              if n == 0:
+                  s = s.rstrip() + "\n\n# CACHE_BUST: " + now + "\n"
+          else:
+              s = s.rstrip() + "\n\n# CACHE_BUST: " + now + "\n"
+          open(p, "w", encoding="utf-8").write(s)
+          PY
+
+      - name: Commit and push changes (if any)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web_game.py
+          git commit -m "chore: update web_game.py CACHE_BUST timestamp [ci skip]" || echo "no changes to commit"
+          git push || echo "push failed or nothing to push"
+
+      - name: Purge jsDelivr edge cache for web_game.py
+        env:
+          OWNER: mo256man
+          REPO: pyxel_demo
+          FILEPATH: web_game.py
+        run: |
+          # Attempt to purge the specific file and the repo root. Use POST to purge endpoint.
+          # jsDelivr supports purge.jsdelivr.net; responses vary but a 200/204 indicates success.
+          set -e
+          echo "Purging jsDelivr for /gh/${OWNER}/${REPO}/${FILEPATH}"
+          curl -fsS -X POST "https://purge.jsdelivr.net/gh/${OWNER}/${REPO}/${FILEPATH}" || true
+          echo "Also purging repository root (best-effort)"
+          curl -fsS -X POST "https://purge.jsdelivr.net/gh/${OWNER}/${REPO}" || true
+
+      - name: Done
+        run: echo "Cache-bust update and jsDelivr purge attempted."
