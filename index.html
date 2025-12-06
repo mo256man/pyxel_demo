@@ -54,7 +54,7 @@
         // Fetch from GitHub API
         const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/commits/${BRANCH}`;
         const response = await fetch(apiUrl, {
-          headers: { 'Accept': 'application/vnd.github.v3+json' }
+          headers: { 'Accept': 'application/vnd.github+json' }
         });
 
         if (!response.ok) {
@@ -117,13 +117,18 @@
     document.getElementById('open-iframe').addEventListener('click', async () => {
       const container = document.getElementById('frame-container');
       container.innerHTML = '<p>Loading...</p>';
-      const url = await launcherUrl();
-      container.innerHTML = '';
-      const ifr = document.createElement('iframe');
-      ifr.src = url;
-      container.appendChild(ifr);
-      // Scroll to show the iframe
-      ifr.scrollIntoView({ behavior: 'smooth' });
+      try {
+        const url = await launcherUrl();
+        const ifr = document.createElement('iframe');
+        ifr.src = url;
+        container.innerHTML = '';
+        container.appendChild(ifr);
+        // Scroll to show the iframe
+        ifr.scrollIntoView({ behavior: 'smooth' });
+      } catch (error) {
+        container.innerHTML = '<p>Failed to load launcher. Please try again.</p>';
+        console.error('[Launcher] Failed to build URL:', error);
+      }
     });
   </script>
 </body>
