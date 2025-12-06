@@ -1,0 +1,46 @@
+name: Emit commit SHA to manifest.json
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'manifest.json'
+
+jobs:
+  emit-sha:
+    # avoid running on commits created by this workflow itself
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Generate manifest.json
+        run: |
+          cat > manifest.json <<EOF
+          {
+            "sha": "${{ github.sha }}",
+            "path": "web_game.py",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          echo "Generated manifest.json:"
+          cat manifest.json
+
+      - name: Commit and push manifest.json (if changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git diff --cached --quiet && echo "No changes to manifest.json" && exit 0
+          git commit -m "chore: update manifest.json with commit SHA [ci skip]"
+          git push || echo "push failed or nothing to push"
+
+      - name: Done
+        run: |
+          echo "Manifest SHA: ${{ github.sha }}"
+          echo "manifest.json has been updated with the latest commit SHA."
