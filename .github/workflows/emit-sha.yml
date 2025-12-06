@@ -36,9 +36,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add manifest.json
-          git diff --cached --quiet && echo "No changes to manifest.json" && exit 0
+          if git diff --cached --quiet; then
+            echo "No changes to manifest.json, skipping commit"
+            exit 0
+          fi
           git commit -m "chore: update manifest.json with commit SHA [ci skip]"
-          git push || echo "push failed or nothing to push"
+          if ! git push; then
+            echo "::error::Failed to push manifest.json changes"
+            exit 1
+          fi
 
       - name: Done
         run: |
