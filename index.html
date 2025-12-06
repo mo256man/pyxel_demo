@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>pyxel run (raw) launcher</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; padding: 20px; }
+    button { font-size: 16px; padding: 10px 14px; margin: 6px; }
+    iframe { width: 100%; height: 640px; border: 1px solid #ccc; margin-top: 12px; }
+    small { color: #666; }
+  </style>
+</head>
+<body>
+  <h2>Pyxel (raw) launcher</h2>
+  <p>目的：ランチャーが jsDelivr のエッジキャッシュを使う代わりに GitHub Raw から直接読み込むように起動して、web_game.py を常に最新で実行します。</p>
+
+  <p>
+    <button id="open-new">Launch (open in new tab)</button>
+    <button id="open-iframe">Launch (embed iframe)</button>
+  </p>
+
+  <p><small>注意：このページはランチャーに「root」を raw.githubusercontent に向けることで、CDN エッジの古いキャッシュを回避します。</small></p>
+
+  <div id="frame-container"></div>
+
+  <script>
+    // 変更したいモジュール名（そのまま run パラメータへ）
+    const runParam = encodeURIComponent('mo256man.pyxel_demo.web_game');
+
+    // root を raw.githubusercontent に向ける（コミットを明示する場合は /branch や @sha を付けることも可能）
+    // 例： https://raw.githubusercontent.com/mo256man/pyxel_demo/main
+    const rawRoot = encodeURIComponent('https://raw.githubusercontent.com/mo256man/pyxel_demo/main');
+
+    // ランチャー URL（root を raw に指定）
+    // 余分に t（timestamp）を付与してキャッシュ回避を強める
+    function launcherUrl() {
+      const t = Date.now();
+      return `https://kitao.github.io/pyxel/wasm/launcher/?run=${runParam}&root=${rawRoot}&t=${t}`;
+    }
+
+    document.getElementById('open-new').addEventListener('click', () => {
+      window.open(launcherUrl(), '_blank');
+    });
+
+    document.getElementById('open-iframe').addEventListener('click', () => {
+      const container = document.getElementById('frame-container');
+      container.innerHTML = '';
+      const ifr = document.createElement('iframe');
+      ifr.src = launcherUrl();
+      container.appendChild(ifr);
+      // スクロールぎみに表示させる
+      ifr.scrollIntoView({ behavior: 'smooth' });
+    });
+  </script>
+</body>
+</html>
