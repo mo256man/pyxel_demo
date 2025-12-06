@@ -3,54 +3,108 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>pyxel run (raw) launcher</title>
+  <title>pyxel run launcher</title>
   <style>
     body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; padding: 20px; }
     button { font-size: 16px; padding: 10px 14px; margin: 6px; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
     iframe { width: 100%; height: 640px; border: 1px solid #ccc; margin-top: 12px; }
     small { color: #666; }
+    #status { color: #888; font-size: 14px; margin-top: 8px; }
   </style>
 </head>
 <body>
-  <h2>Pyxel (raw) launcher</h2>
-  <p>目的：ランチャーが jsDelivr のエッジキャッシュを使う代わりに GitHub Raw から直接読み込むように起動して、web_game.py を常に最新で実行します。</p>
+  <h2>Pyxel launcher</h2>
+  <p>目的：jsDelivr のエッジキャッシュの古いコピーを回避するため、コミット SHA を用いた content-addressed URL で常に最新の web_game.py を実行します。</p>
 
   <p>
     <button id="open-new">Launch (open in new tab)</button>
     <button id="open-iframe">Launch (embed iframe)</button>
   </p>
 
-  <p><small>注意：このページはランチャーに「root」を raw.githubusercontent に向けることで、CDN エッジの古いキャッシュを回避します。</small></p>
+  <p><small>注意：このランチャーは GitHub API を使って最新のコミット SHA を取得し、jsDelivr の @commit-sha 形式 URL を利用します。API 呼び出しに失敗した場合は raw.githubusercontent にフォールバックします。</small></p>
 
+  <div id="status"></div>
   <div id="frame-container"></div>
 
   <script>
-    // 変更したいモジュール名（そのまま run パラメータへ）
-    const runParam = encodeURIComponent('mo256man.pyxel_demo.web_game');
+    const OWNER = 'mo256man';
+    const REPO = 'pyxel_demo';
+    const BRANCH = 'main';
+    const SESSION_STORAGE_KEY = 'pyxel_demo_commit_sha';
 
-    // root を raw.githubusercontent に向ける（コミットを明示する場合は /branch や @sha を付けることも可能）
-    // 例： https://raw.githubusercontent.com/mo256man/pyxel_demo/main
-    const rawRoot = encodeURIComponent('https://raw.githubusercontent.com/mo256man/pyxel_demo/main');
+    const runParam = encodeURIComponent(`${OWNER}.${REPO}.web_game`);
 
-    // ランチャー URL（root を raw に指定）
-    // 余分に t（timestamp）を付与してキャッシュ回避を強める
-    function launcherUrl() {
-      const t = Date.now();
-      return `https://kitao.github.io/pyxel/wasm/launcher/?run=${runParam}&root=${rawRoot}&t=${t}`;
+    async function getLatestCommitSha() {
+      const cached = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (cached) {
+        return cached;
+      }
+
+      try {
+        const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/commits/${BRANCH}`;
+        const response = await fetch(apiUrl, {
+          headers: { 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (!response.ok) {
+          throw new Error(`GitHub API returned ${response.status}`);
+        }
+        const data = await response.json();
+        const sha = data.sha;
+        sessionStorage.setItem(SESSION_STORAGE_KEY, sha);
+        return sha;
+      } catch (error) {
+        console.warn('Failed to fetch commit SHA from GitHub API:', error);
+        return null;
+      }
     }
 
-    document.getElementById('open-new').addEventListener('click', () => {
-      window.open(launcherUrl(), '_blank');
+    function buildLauncherUrl(rootUrl) {
+      const encodedRoot = encodeURIComponent(rootUrl);
+      const t = Date.now();
+      return `https://kitao.github.io/pyxel/wasm/launcher/?run=${runParam}&root=${encodedRoot}&t=${t}`;
+    }
+
+    async function getLauncherUrl() {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = 'Resolving latest commit SHA...';
+
+      const sha = await getLatestCommitSha();
+
+      if (sha) {
+        const rootUrl = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${sha}`;
+        statusEl.textContent = `Using jsDelivr with commit: ${sha.substring(0, 7)}`;
+        return buildLauncherUrl(rootUrl);
+      } else {
+        const rootUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}`;
+        statusEl.textContent = 'Fallback: Using raw.githubusercontent (API unavailable)';
+        return buildLauncherUrl(rootUrl);
+      }
+    }
+
+    document.getElementById('open-new').addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      try {
+        const url = await getLauncherUrl();
+        window.open(url, '_blank');
+      } finally {
+        e.target.disabled = false;
+      }
     });
 
-    document.getElementById('open-iframe').addEventListener('click', () => {
-      const container = document.getElementById('frame-container');
-      container.innerHTML = '';
-      const ifr = document.createElement('iframe');
-      ifr.src = launcherUrl();
-      container.appendChild(ifr);
-      // スクロールぎみに表示させる
-      ifr.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('open-iframe').addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      try {
+        const url = await getLauncherUrl();
+        const container = document.getElementById('frame-container');
+        container.innerHTML = '';
+        const ifr = document.createElement('iframe');
+        ifr.src = url;
+        container.appendChild(ifr);
+        ifr.scrollIntoView({ behavior: 'smooth' });
+      } finally {
+        e.target.disabled = false;
+      }
     });
   </script>
 </body>
