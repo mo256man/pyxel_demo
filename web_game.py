@@ -55,7 +55,7 @@ GRID_X = (SCREEN_W - GRID_W_PIX) // 2
 GRID_Y = (SCREEN_H - GRID_H_PIX) // 2
 
 # タイミング（フレーム数）
-DROP_INTERVAL = 3
+DROP_INTERVAL = 1
 ERASE_ANIM_FRAMES = 18
 GEN_WAIT_FRAMES = 4
 
@@ -376,10 +376,11 @@ class App:
 
         # HUD: 連鎖表示またはステータスメッセージ
         if self.field.rensa > 0:
-            txt = f"{self.field.rensa} 連鎖 {'!' * min(self.field.rensa, 6)}"
+            txt = f"{self.field.rensa} ren {'!' * min(self.field.rensa, 6)}"
             pyxel.text(8, 8, txt, 7)
         else:
-            pyxel.text(8, 8, "見るだけ Puyo (自動再生)", 7)
+            pass
+            # pyxel.text(8, 8, "見るだけ Puyo (自動再生)", 7)
         pyxel.text(8, 18, "操作: なし（表示専用）", 7)
 
 def run():
