@@ -88,17 +88,25 @@ def _init_pyxel():
 
 class Pair:
     def __init__(self, r, c, orientation, col_a, col_b):
-        self.r = r
-        self.c = c
-        self.orientation = orientation  # 'H' または 'V'
-        self.col_a = col_a
-        self.col_b = col_b
+        if orientation == 'H':
+            self.blocks = [(r, c, col_a), (r, c+1, col_b)]
+        else:
+            self.blocks = [(r, c, col_a), (r+1, c, col_b)]
 
     def positions(self):
-        if self.orientation == 'H':
-            return [(self.r, self.c), (self.r, self.c + 1)]
-        else:
-            return [(self.r, self.c), (self.r + 1, self.c)]
+        return [(r, c) for r, c, _ in self.blocks]
+
+    def move_down(self, field):
+        new_blocks = []
+        for r, c, col in self.blocks:
+            if r + 1 >= H or field.matrix[r + 1][c] != 0:
+                field.matrix[r][c] = col
+            else:
+                new_blocks.append((r + 1, c, col))
+        self.blocks = new_blocks
+        if not self.blocks:
+            return True  # 全て固定
+        return False
 
 class Field:
     def __init__(self):
@@ -159,18 +167,6 @@ class Field:
             self.gen_wait = GEN_WAIT_FRAMES
             self.rensa = 0
 
-    def pair_can_move_down(self):
-        # 現在のペアが1セル下に移動できるかチェック
-        if self.current_pair is None:
-            return False
-        for (r, c) in self.current_pair.positions():
-            nr = r + 1
-            if nr >= H:
-                return False
-            if self.matrix[nr][c] != 0:
-                return False
-        return True
-
     def lock_current_pair(self):
         # ペアを固定（マトリックスに書き込む）
         if self.current_pair is None:
@@ -191,13 +187,9 @@ class Field:
         # ペアがある場合はペアとして落下させ、それ以外は単体ブロックの落下処理
         moved = False
         if self.current_pair is not None:
-            if self.pair_can_move_down():
-                self.current_pair.r += 1
-                moved = True
-            else:
-                # 固定して True を返す（動いた／変化した）
-                self.lock_current_pair()
-                moved = True
+            if self.current_pair.move_down(self):
+                self.current_pair = None
+            moved = True
             return moved
 
         # 単体ブロックの落下（下から順に1セルだけ落とす）
@@ -362,9 +354,7 @@ class App:
         self.field.draw()
         # 落下中のペアをマトリックス描画の上に重ねて描画
         if self.field.current_pair is not None:
-            pos = self.field.current_pair.positions()
-            cols = [self.field.current_pair.col_a, self.field.current_pair.col_b]
-            for (r, c), col in zip(pos, cols):
+            for r, c, col in self.field.current_pair.blocks:
                 if not (0 <= r < H and 0 <= c < W):
                     continue
                 x = GRID_X + c * CELL
