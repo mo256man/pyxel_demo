@@ -85,6 +85,8 @@ def _init_pyxel():
     except Exception:
         # inspect が利用できない実装や予期せぬ例外が出た場合は caption なしで再試行
         pyxel.init(SCREEN_W, SCREEN_H)
+    
+    pyxel.quit_key(pyxel.KEY_NONE)  # ESCキーで終了しないようにする
 
 class Pair:
     def __init__(self, field, r_a, c_a, r_b, c_b, col_a, col_b):
@@ -378,10 +380,6 @@ class App:
         if self.field.rensa > 0:
             txt = f"{self.field.rensa} ren {'!' * min(self.field.rensa, 6)}"
             pyxel.text(8, 8, txt, 7)
-        else:
-            pass
-            # pyxel.text(8, 8, "見るだけ Puyo (自動再生)", 7)
-        pyxel.text(8, 18, "操作: なし（表示専用）", 7)
 
 def run():
     """アプリを開始する。ランチャーや外部コードから呼び出せるようにしている。"""
