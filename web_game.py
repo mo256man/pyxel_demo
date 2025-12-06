@@ -195,6 +195,7 @@ class Field:
                 self.current_pair.r += 1
                 moved = True
             else:
+                # 固定して True を返す（動いた／変化した）
                 self.lock_current_pair()
                 moved = True
             return moved
@@ -258,13 +259,68 @@ class Field:
                     self.matrix[r][c] = 0
 
     def update(self):
-        # 消去アニメーション処理
+        # ゲームのフレーム処理（消去アニメ、生成待ち、落下、消去検出、連鎖処理）
+        # 1) 消去アニメが進行中ならそれを処理
         if self.erase_anim_timer > 0:
             self.erase_anim_timer -= 1
             if self.erase_anim_timer == 0:
+                # アニメ終了 → 実際に削除
                 for (r,c) in self.to_clear:
                     self.matrix[r][c] = 0
                 self.to_clear = []
+                # 重力で落とす（安定するまで）
+                moved = True
+                while moved:
+                    moved = self.drop_step()
+                # 落下後に再度消去が起きれば連鎖継続
+                if self.erase():
+                    # 連鎖を継続
+                    self.rensa += 1
+                    # erase() が erase_anim_timer をセットする
+                else:
+                    # 連鎖終了
+                    self.rensa = 0
+                    self.is_generate = True
+            return
+
+        # 2) 生成待ち（ペアを置いた直後の短い待ち時間）
+        if self.gen_wait > 0:
+            self.gen_wait -= 1
+            return
+
+        # 3) もし生成フラグが立っているなら新しいペアを生成
+        if self.is_generate and self.current_pair is None:
+            self.generate_drop()
+            return
+
+        # 4) ペアが存在する場合の落下処理（タイマー制御）
+        if self.current_pair is not None:
+            self.drop_timer += 1
+            if self.drop_timer >= DROP_INTERVAL:
+                self.drop_timer = 0
+                # drop_step は落下または固定を行う
+                moved = self.drop_step()
+                # 固定された場合は current_pair が None になるので検出して消去処理へ移行
+                if self.current_pair is None:
+                    if self.erase():
+                        # 初回の消去が見つかったら連鎖カウントを 1 にする
+                        self.rensa = 1
+                        # erase() が erase_anim_timer をセットする
+                    else:
+                        # 消去なし → 次の生成へ
+                        self.is_generate = True
+            return
+
+        # 5) ペアが無い状態で単体ブロックがある場合は時々重力処理を走らせる
+        self.drop_timer += 1
+        if self.drop_timer >= DROP_INTERVAL:
+            self.drop_timer = 0
+            moved = self.drop_step()
+            if moved:
+                # 落下が起きた後に消えるものがあれば処理
+                if self.erase():
+                    self.rensa = 1
+            # 何もなければ次フレームへ
 
     def draw(self):
         # グリッドの各セルを描画
@@ -295,27 +351,19 @@ class App:
         # ローカル実行時に終了できるように Q/Escape を許可
         if pyxel.btnp(pyxel.KEY_Q) or pyxel.btnp(pyxel.KEY_ESCAPE):
             pyxel.quit()
+        # フィールドの状態更新（自動再生ロジックを中に含む）
         self.field.update()
 
     def draw(self):
         pyxel.cls(BG_COLOR)
         # グリッド周りの枠描画
         pyxel.rect(GRID_X-2, GRID_Y-2, GRID_W_PIX+4, GRID_H_PIX+4, 1)
+        # フィールド本体を描画
         self.field.draw()
-        # HUD: 連鎖表示またはステータスメッセージ
-        if self.field.rensa > 0:
-            txt = f"{self.field.rensa} 連鎖 {'!' * min(self.field.rensa, 6)}"
-            pyxel.text(8, 8, txt, 7)
-        else:
-            pyxel.text(8, 8, "見るだけ Puyo (自動再生)", 7)
-        pyxel.text(8, 18, "操作: なし（表示専用）", 7)
-        pyxel.text(8, 28, "Q/Esc で終了(ローカル実行時)", 7)
-
-    def draw(self):
         # 落下中のペアをマトリックス描画の上に重ねて描画
-        if self.current_pair is not None:
-            pos = self.current_pair.positions()
-            cols = [self.current_pair.col_a, self.current_pair.col_b]
+        if self.field.current_pair is not None:
+            pos = self.field.current_pair.positions()
+            cols = [self.field.current_pair.col_a, self.field.current_pair.col_b]
             for (r, c), col in zip(pos, cols):
                 if not (0 <= r < H and 0 <= c < W):
                     continue
@@ -324,6 +372,15 @@ class App:
                 colidx = COLOR_MAP.get(col, 11)
                 pyxel.rect(x+1, y+1, CELL-2, CELL-2, colidx)
                 pyxel.rectb(x, y, CELL, CELL, 7)
+
+        # HUD: 連鎖表示またはステータスメッセージ
+        if self.field.rensa > 0:
+            txt = f"{self.field.rensa} 連鎖 {'!' * min(self.field.rensa, 6)}"
+            pyxel.text(8, 8, txt, 7)
+        else:
+            pyxel.text(8, 8, "見るだけ Puyo (自動再生)", 7)
+        pyxel.text(8, 18, "操作: なし（表示専用）", 7)
+        pyxel.text(8, 28, "Q/Esc で終了(ローカル実行時)", 7)
 
 def run():
     """アプリを開始する。ランチャーや外部コードから呼び出せるようにしている。"""
