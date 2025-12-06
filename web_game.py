@@ -195,7 +195,9 @@ class Field:
                 self.current_pair.r += 1
                 moved = True
             else:
-                # 固定して True を返す（動いた／変化した）
+                # Puyo Puyo style: lock both blocks in the matrix
+                # The gravity settling loop in update() will make any block
+                # that can still move continue falling
                 self.lock_current_pair()
                 moved = True
             return moved
@@ -302,6 +304,10 @@ class Field:
                 moved = self.drop_step()
                 # 固定された場合は current_pair が None になるので検出して消去処理へ移行
                 if self.current_pair is None:
+                    # Puyo Puyo style: let gravity settle all blocks before checking for erases
+                    gravity_moved = True
+                    while gravity_moved:
+                        gravity_moved = self.drop_step()
                     if self.erase():
                         # 初回の消去が見つかったら連鎖カウントを 1 にする
                         self.rensa = 1
