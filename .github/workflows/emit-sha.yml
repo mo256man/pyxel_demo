@@ -1,0 +1,26 @@
+name: Emit Commit SHA
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - '.github/workflows/emit-sha.yml'
+
+jobs:
+  emit-sha:
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.get-sha.outputs.sha }}
+    steps:
+      - name: Get commit SHA
+        id: get-sha
+        run: |
+          echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "Commit SHA: ${{ github.sha }}"
+
+      - name: Display SHA info
+        run: |
+          echo "The current commit SHA is: ${{ steps.get-sha.outputs.sha }}"
+          echo "jsDelivr URL pattern: https://cdn.jsdelivr.net/gh/${{ github.repository }}@${{ steps.get-sha.outputs.sha }}/web_game.py"
