@@ -35,9 +35,14 @@
 
     const runParam = encodeURIComponent(`${OWNER}.${REPO}.web_game`);
 
+    // Validate that a string looks like a valid SHA (40 hex characters)
+    function isValidSha(sha) {
+      return typeof sha === 'string' && /^[0-9a-f]{40}$/i.test(sha);
+    }
+
     async function getLatestCommitSha() {
       const cached = sessionStorage.getItem(SESSION_STORAGE_KEY);
-      if (cached) {
+      if (cached && isValidSha(cached)) {
         return cached;
       }
 
@@ -51,6 +56,9 @@
         }
         const data = await response.json();
         const sha = data.sha;
+        if (!isValidSha(sha)) {
+          throw new Error('Invalid SHA received from API');
+        }
         sessionStorage.setItem(SESSION_STORAGE_KEY, sha);
         return sha;
       } catch (error) {
@@ -67,17 +75,23 @@
 
     async function getLauncherUrl() {
       const statusEl = document.getElementById('status');
-      statusEl.textContent = 'Resolving latest commit SHA...';
+      if (statusEl) {
+        statusEl.textContent = 'Resolving latest commit SHA...';
+      }
 
       const sha = await getLatestCommitSha();
 
       if (sha) {
         const rootUrl = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${sha}`;
-        statusEl.textContent = `Using jsDelivr with commit: ${sha.substring(0, 7)}`;
+        if (statusEl) {
+          statusEl.textContent = `Using jsDelivr with commit: ${sha.substring(0, 7)}`;
+        }
         return buildLauncherUrl(rootUrl);
       } else {
         const rootUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}`;
-        statusEl.textContent = 'Fallback: Using raw.githubusercontent (API unavailable)';
+        if (statusEl) {
+          statusEl.textContent = 'Fallback: Using raw.githubusercontent (API unavailable)';
+        }
         return buildLauncherUrl(rootUrl);
       }
     }
