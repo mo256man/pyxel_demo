@@ -12,6 +12,8 @@ jobs:
     # avoid running on commits created by this workflow itself
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
